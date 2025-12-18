@@ -1,13 +1,9 @@
-Project Title:
-    VibeTrip
-Project Description:
-    VibeTrip transforms routine road trips into dynamic adventures by recommending live events along a traveler’s route.  
-Using Mapbox and Ticketmaster APIs, the application lets users input trip details — start and end points, dates, and event radius — to discover concerts, sports, and cultural events that match their preferences.  
 
-Unlike traditional route planners that only show static locations (e.g., gas stations or restaurants), VibeTrip connects travelers to live experiences on their journey. The backend uses Mapbox and Python to process route coordinates, convert them into geohashes, and query the Ticketmaster API for nearby events.  
-These events are visualized on a Dash Leaflet map interface, where users can filter by event type, genre, city, state. Users can also use the text search feature to filter for events by name. 
+    
+## Project Description:
+    VibeTrip transforms routine road trips into dynamic adventures by recommending live events along a traveler’s route. Using Mapbox and Ticketmaster APIs, the application lets users input trip details — start and end points, dates, and event radius — to discover concerts, sports, and cultural events that match their preferences.  Unlike traditional route planners that only show static locations (e.g., gas stations or restaurants), VibeTrip connects travelers to live experiences on their journey. The backend uses Mapbox and Python to process route coordinates, convert them into geohashes, and query the Ticketmaster API for nearby events. These events are visualized on a Dash Leaflet map interface, where users can filter by event type, genre, city, state. Users can also use the text search feature to filter for events by name. 
 
-Goal:
+### Goal:
     Enhance the road-trip experience by blending travel planning with real-time event discovery.
 
 ---
