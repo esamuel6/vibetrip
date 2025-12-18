@@ -1,0 +1,279 @@
+import dash_leaflet as dl
+from dash_extensions.enrich import DashProxy, html
+import dash_leaflet.express as dlx
+import pandas as pd
+from dash import Dash, dcc, html, Input, Output, State, callback
+import requests
+from datetime import date, datetime
+from mapbox import Geocoder, Directions
+import pygeohash as pgh
+import time
+
+# access_token = 'pk.eyJ1IjoibXNjb3V0MyIsImEiOiJjbWZnYnNwbmwwY3drMmxwdjQ5N2oybWh6In0.jnEaFseuOaG5C7fchhy6LQ'
+# geocoder = Geocoder(access_token=access_token)
+# service = Directions(access_token=access_token)
+# tm_api = 'rHRigHQFznnKTxwjJ7lQA1DuzfhqKo6j'
+
+tm_test = pd.read_csv("tm_test_data.csv")
+tm_test = tm_test.reset_index(drop=True)
+tm_test = tm_test.drop('Unnamed: 0', axis=1)
+tm_test = tm_test.drop_duplicates(subset=['attraction', 'date', 'time'])
+tm_test['time'] = tm_test['time'].fillna('TBD')
+tm_test = tm_test.replace('Arts & Theatre', 'Arts_Theatre')
+
+# print(tm_test.head())
+custom_icon =dict(
+    iconUrl="https://s1.ticketm.net/dam/a/7f0/da5c0609-34b5-4c5a-af11-8b609bc927f0_TABLET_LANDSCAPE_LARGE_16_9.jpg",
+    iconSize=[64, 36],
+    popupAnchor=[-3, -76],
+)
+
+
+zipped_coords = list(zip(tm_test['latitude'], tm_test['longitude']))
+center = [39.73059, -104.98857]
+
+geo_test = []
+
+for index, row in tm_test.iterrows():
+    build_dict = {
+        "lat": row['latitude'],
+        "lon": row['longitude'],
+        "popup": f"<b>{row['attraction']} - {row['date']}  {row['time']}</b><br><img src={row['splashart']} alt ='Show Info' width='106' height='45'><br><a href={tm_test['event_page']} target='_blank'> Find Tickets </a>"
+    }
+    geo_test.append(build_dict)
+
+geojson_data = dlx.dicts_to_geojson(geo_test)
+
+point_to_layer_js = """
+function(feature, latlng){
+    if (feature.properties.display_icon === false) {
+        return null; // Don't render a marker for this feature
+    }
+    // Default marker for features where display_icon is true or not defined
+    return L.marker(latlng);
+}
+"""
+app = DashProxy()
+
+app.layout = html.Div([
+    html.Div([
+        dl.Map(
+        children=[
+            dl.TileLayer(),
+            dl.GeoJSON(id="events_to_see", data=None, cluster=True),
+            # dl.Polyline(positions=zipped_coords),
+            dl.GeoJSON(id="trip_dir_geo", pointToLayer=point_to_layer_js, data=None,),
+            dl.Polyline(id="my-polyline", positions=[])
+        ],
+        center=center,
+        zoom=6,
+        style={"height": "50vh"}) ,
+    
+        dcc.Input(id='input-1-state', type='text', value='Starting Point'),
+        dcc.Input(id='input-2-state', type='text', value='Destination'),
+        dcc.DatePickerRange(id='input-3-state', min_date_allowed=date.today(), initial_visible_month=date.today()),
+        html.Button(id='submit-button-state', n_clicks=0, children='GET VIBING'),
+        dcc.Slider(1,100, 1, value = 20, id='how_far', marks = {25: "25", 50: "50", 75:"75", 100:"100"},
+                   tooltip={"placement": "bottom", "style":{"color":"SteelBlue", "fontSize": "20px"}, "always_visible": True,
+                            "template": "{value} Miles"}), 
+        html.Div(id='output-state', style={'display':'none'})
+
+    ])
+])
+
+
+@app.callback(Output('events_to_see', 'data'),
+              Output('trip_dir_geo', 'data'),
+              Output('my-polyline', 'positions'),
+              Output('output-state', 'children'),
+              Input('submit-button-state', 'n_clicks'),
+              State('input-1-state', 'value'),
+              State('input-2-state', 'value'),
+              State('input-3-state', 'start_date'),
+              State('input-3-state', 'end_date'),
+              State('how_far', 'value')
+              )
+
+
+
+
+def update_output(n_clicks, start_loc, destination, start_date, end_date, how_far):
+    access_token = 'pk.eyJ1IjoibXNjb3V0MyIsImEiOiJjbWZnYnNwbmwwY3drMmxwdjQ5N2oybWh6In0.jnEaFseuOaG5C7fchhy6LQ'
+    geocoder = Geocoder(access_token=access_token)
+    service = Directions(access_token=access_token)
+    tm_api = 'rHRigHQFznnKTxwjJ7lQA1DuzfhqKo6j'
+    if n_clicks > 0:
+        response_forward_start = geocoder.forward(start_loc)
+        response_forward_end = geocoder.forward(destination)
+
+        if response_forward_start.status_code == 200:
+            features = response_forward_start.geojson()['features']
+            if features:
+                first_result = features[0]
+                start_coordinates = first_result['geometry']['coordinates']
+        if response_forward_end.status_code == 200:
+            features = response_forward_end.geojson()['features']
+            if features:
+                first_result = features[0]
+                end_coordinates = first_result['geometry']['coordinates']
+        origin = {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': start_coordinates}}
+        dest = {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': end_coordinates}}
+
+
+        directions_response = service.directions([origin, dest], profile='mapbox/driving', steps=True)
+
+        trip_coords = []
+
+        if directions_response.status_code == 200:
+            directions_data = directions_response.json()
+
+            route = directions_data['routes'][0] 
+
+            steps = route["legs"][0]["steps"]
+            print(len(steps))
+            for step in steps:
+                trip_coords.append(step["maneuver"]["location"])
+
+        trip_df = pd.DataFrame(trip_coords, columns=['longitude', 'latitude'])
+
+        startDateTime = datetime.strptime(start_date, "%Y-%m-%d")
+        endDateTime = datetime.strptime(end_date, "%Y-%m-%d")
+        startDateTime = startDateTime.strftime("%Y-%m-%d")
+        endDateTime = endDateTime.strftime("%Y-%m-%d")
+
+        trip_dir_geo = []
+
+        for index, row in trip_df.iterrows():
+            build_dict = {
+                "lat": row['latitude'],
+                "lon": row['longitude']
+            }
+            trip_dir_geo.append(build_dict)
+        
+        trip_dir_geo = dlx.dicts_to_geojson(trip_dir_geo)
+        my_polyline = list(zip(trip_df['latitude'], trip_df['longitude']))
+
+        geohashes = []
+        for _ in range(len(trip_coords)):
+            geohashes.append(pgh.encode(trip_coords[_][1], trip_coords[_][0], precision=9))
+
+######################################################################################################
+    data_rows = []
+    col_names = ['attraction', "event_page", "splashart", 
+             "tm_segment", "genre", "subgenre", "venue",
+             "city", "state", "street", "date", "time", "fam_friendly",
+             "longitude", "latitude"
+             ]
+
+    for geohash in geohashes:
+        url = f'https://app.ticketmaster.com/discovery/v2/events.json?apikey={tm_api}&startDateTime={startDateTime}T00:00:00Z&endDateTime={endDateTime}T23:59:59Z&geoPoint={geohash}&radius={how_far}&unit=miles&size=100'
+        response = requests.get(url)
+        data = response.json()
+        # st.write(len(data))
+        if "_embedded" in data.keys():
+            for i in range(len(data["_embedded"]["events"])):
+
+                row_data = []
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["name"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["url"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["images"][0]["url"])
+                except:
+                    row_data.append(None)
+                try:        
+                    row_data.append(data["_embedded"]["events"][i]["classifications"][0]["segment"]["name"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["classifications"][0]["genre"]["name"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["classifications"][0]["subGenre"]["name"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["name"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["city"]["name"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["state"]["stateCode"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["address"]["line1"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["dates"]["start"]["localDate"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["dates"]["start"]["localTime"])
+                except:
+                    row_data.append(None)
+                try:
+                    row_data.append(data["_embedded"]["events"][i]["classifications"][0]["family"])
+                except:
+                    row_data.append(None)
+                try:
+                    coords = tuple(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["location"].values())
+                    long = coords[0]
+                    row_data.append(long)
+                    
+                    # row_data.append(tuple(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["location"].values()[0]))
+                except:
+                    row_data.append(None)
+                try:
+                    coords = tuple(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["location"].values())
+                    lat = coords[1]
+                    row_data.append(lat)
+                except:
+                    row_data.append(None)   
+                data_rows.append(row_data)
+        time.sleep(.5)
+
+        
+    tm_df = pd.DataFrame(data_rows, columns=col_names)
+
+    tm_df = tm_df.dropna(subset=["event_page"])
+
+    events_to_see = []
+
+    for index, row in tm_df.iterrows():
+        build_dict = {
+            "lat": row['latitude'],
+            "lon": row['longitude'],
+            "popup": f"<b>{row['attraction']} - {row['date']}  {row['time']}</b><br><img src={row['splashart']} alt ='Show Info' width='106' height='45'><br><a href={tm_test['event_page']} target='_blank'> Find Tickets </a>"
+        }
+        events_to_see.append(build_dict)
+
+    events_to_see = dlx.dicts_to_geojson(events_to_see)
+
+
+
+
+        
+
+    return  events_to_see, trip_dir_geo, my_polyline, f'''
+            The Button has been pressed {n_clicks} times,
+            Input 1 is "{start_loc}",
+            and Input 2 is "{destination},"
+            the date range is {start_date} - {end_date}"
+            {startDateTime}\n"
+            {trip_dir_geo}
+        '''
+
+
+if __name__ == "__main__":
+    app.run()

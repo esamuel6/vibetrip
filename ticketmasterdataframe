@@ -1,0 +1,87 @@
+col_names = ['attraction', "event_page", "splashart", 
+             "tm_segment", "genre", "subgenre", "venue",
+             "city", "state", "street", "date", "time", "fam_friendly",
+             "longitude", "latitude"
+             ]
+
+
+data_rows = []
+
+
+
+for i in range(len(data["_embedded"]["events"])):
+    row_data = []
+    # print(i)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["name"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["url"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["images"][0]["url"])
+    except:
+        row_data.append(None)
+    try:        
+        row_data.append(data["_embedded"]["events"][i]["classifications"][0]["segment"]["name"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["classifications"][0]["genre"]["name"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["classifications"][0]["subGenre"]["name"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["name"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["city"]["name"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["state"]["stateCode"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["address"]["line1"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["dates"]["start"]["localDate"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["dates"]["start"]["localTime"])
+    except:
+        row_data.append(None)
+    try:
+        row_data.append(data["_embedded"]["events"][i]["classifications"][0]["family"])
+    except:
+        row_data.append(None)
+    try:
+        coords = tuple(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["location"].values())
+        long = coords[0]
+        row_data.append(long)
+        
+        # row_data.append(tuple(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["location"].values()[0]))
+    except:
+        row_data.append(None)
+    try:
+        coords = tuple(data["_embedded"]["events"][i]["_embedded"]["venues"][0]["location"].values())
+        lat = coords[1]
+        row_data.append(lat)
+    except:
+        row_data.append(None)   
+    data_rows.append(row_data)
+
+
+tm_df = pd.DataFrame(data_rows, columns=col_names)
+tm_df = tm_df.dropna(subset=["event_page"]) 
+
+print(tm_df.head())

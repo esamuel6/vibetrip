@@ -1,0 +1,123 @@
+import dash_leaflet as dl
+from dash_extensions.enrich import DashProxy, html
+import dash_leaflet.express as dlx
+import pandas as pd
+import dash
+# from dash import html
+
+
+tm_test = pd.read_csv("tm_test_data.csv")
+tm_test = tm_test.reset_index(drop=True)
+tm_test = tm_test.drop('Unnamed: 0', axis=1)
+tm_test = tm_test.drop_duplicates(subset=['attraction', 'date', 'time'])
+tm_test['time'] = tm_test['time'].fillna('TBD')
+
+# print(tm_test.head())
+
+custom_icon =dict(
+    iconUrl="https://s1.ticketm.net/dam/a/7f0/da5c0609-34b5-4c5a-af11-8b609bc927f0_TABLET_LANDSCAPE_LARGE_16_9.jpg",
+    iconSize=[64, 36],
+    popupAnchor=[-3, -76],
+)
+
+icon2 =dict(
+    iconUrl="https://s1.ticketm.net/dam/a/a3b/ecfd2187-1606-4333-9357-f521197eca3b_TABLET_LANDSCAPE_3_2.jpg",
+    iconSize=[64, 36],
+    iconAnchor=[22, 94],
+    popupAnchor=[-3, -76],
+)
+
+more_test = 'https://s1.ticketm.net/dam/a/a3b/ecfd2187-1606-4333-9357-f521197eca3b_TABLET_LANDSCAPE_3_2.jpg'
+show_info = 'https://www.ticketmaster.com/tours-truist-park-atlanta-georgia-10-31-2025/event/0E00630196B93966'
+
+points_to_test = [{'title': "Denver 1", 'position': [39.73059, -104.98857]},{'title': "Denver 2", 'position': [39, -104]}]
+
+# markers = [dl.Marker(position=points['position'], children=[dl.Popup(content=points["title"])]) for points in points_to_test]
+# markers = [dl.Marker(position=)]
+connect_me = [points['position'] for points in points_to_test]
+
+zipped_coords = list(zip(tm_test['latitude'], tm_test['longitude']))
+
+
+geo_test = []
+
+for index, row in tm_test.iterrows():
+    build_dict = {
+        "lat": row['latitude'],
+        "lon": row['longitude'],
+        "popup": f"<b>{row['attraction']} - {row['date']}  {row['time']}</b><br><img src={row['splashart']} alt ='Show Info' width='106' height='45'><br><a href={tm_test['event_page']} target='_blank'> Find Tickets </a>"
+    }
+    geo_test.append(build_dict)
+
+geojson_data = dlx.dicts_to_geojson(geo_test)
+
+
+app = DashProxy()
+
+app.layout = html.Div(
+    [
+        dl.Map(
+            children=[
+                dl.TileLayer(),
+                dl.GeoJSON(data=geojson_data, cluster=True),
+                dl.Polyline(positions=zipped_coords)
+            ],
+            center=center,
+            zoom=6,
+            style={"height": "50vh"}), 
+    ]
+
+
+)
+
+if __name__ == "__main__":
+    app.run()
+
+
+
+
+
+
+# ### if geojson doesn't work out for any reason
+# markers = []
+# for index, row in  tm_test.iterrows():
+#     marker = dl.Marker(
+#         position=[row['latitude'], row['longitude']],
+#         children=[
+#             dl.Popup(content=f"<b>{row['attraction']}</b>")
+#         ]
+#     )
+#     markers.append(marker)
+
+
+
+# app.layout = html.Div(
+#     [
+#         dl.Map(
+                
+#             [dl.TileLayer(), 
+#             *markers,
+#             dl.Polyline(positions=zipped_coords)
+#             ],
+#             center=center,
+#             zoom=6,
+#             style={"height": "50vh"}), 
+#     ]
+
+
+# )
+
+##### code test samples here
+
+# custom_icon =dict(
+#     iconUrl="https://s1.ticketm.net/dam/a/7f0/da5c0609-34b5-4c5a-af11-8b609bc927f0_TABLET_LANDSCAPE_LARGE_16_9.jpg",
+#     iconSize=[64, 36],
+#     popupAnchor=[-3, -76],
+# )
+
+# icon2 =dict(
+#     iconUrl="https://s1.ticketm.net/dam/a/a3b/ecfd2187-1606-4333-9357-f521197eca3b_TABLET_LANDSCAPE_3_2.jpg",
+#     iconSize=[64, 36],
+#     iconAnchor=[22, 94],
+#     popupAnchor=[-3, -76],
+# )
